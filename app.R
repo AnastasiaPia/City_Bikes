@@ -6,7 +6,7 @@ library(httr)
 #install.packages("jsonlite")
 library(jsonlite)
 
-
+library(Lab5)
 
 # Define UI for application
 ui <- fluidPage(
@@ -18,8 +18,7 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       selectInput("city_id", "Select City:",
-                  choices = c("malmobybike", "lundahoj"),
-                  selected = "malmobybike"
+                  choices = unique(Lab5::getCityNames())
       ),
       actionButton("get_info_button", "Get Information")),
     # Show a plot of the generated distribution
@@ -30,36 +29,13 @@ ui <- fluidPage(
   )
 )
 
-# Define server logic required to draw a histogram
 server <- function(input, output) {
-  network_info_list <- reactive({
-    # Fetch and parse data from the city bike network API
-    api_url <- "http://api.citybik.es/v2/networks"
-    response <- httr::GET(api_url)
-    api_data <- httr::content(response, "text")
-    parsed_data <- jsonlite::fromJSON(api_data)
-
-    # List of network IDs to retrieve detailed information for
-    network_ids <- c("malmobybike", "lundahoj")
-    network_info_list <- list()
-
-    for (network_id in network_ids) {
-      network_url <- paste0(api_url, "/", network_id)
-      network_response <- httr::GET(network_url)
-      network_data <- httr::content(network_response, "text")
-      network_info <- jsonlite::fromJSON(network_data)
-      if (!is.null(network_info)) {
-        network_info_list[[network_id]] <- network_info
-      }
-    }
-    return(network_info_list)
-  })
   observeEvent(input$get_info_button, {
     city_id <- input$city_id
-    city_info <- network_info_list()[[city_id]]
+    city_info <- Lab5::getCityInfo(city_id)
 
     if (!is.null(city_info)) {
-      results <- find_busiest_and_least_busy_stations(city_info)
+      results <- Lab5::find_busiest_and_least_busy_stations(city_info)
 
       busiest_station <- results$busiest
       least_busy_station <- results$least_busy
@@ -85,7 +61,6 @@ server <- function(input, output) {
       output$least_busy_station_info <- renderText(NULL)
     }
   })
-
 }
 # Run the application
 shinyApp(ui = ui, server = server)
