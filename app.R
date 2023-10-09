@@ -6,18 +6,24 @@ library(httr)
 #install.packages("jsonlite")
 library(jsonlite)
 
-library(Lab5)
+
+
+
+if(!("Lab5" %in% installed.packages()[,"Package"])){
+  devtools::install_github("NAZLIBILGIC/Lab5")
+  library(Lab5)
+}
 
 # Define UI for application
 ui <- fluidPage(
 
   # Application title
-  titlePanel("City Bike Information"),
+  titlePanel("City Bike Station Status"),
 
   # Sidebar with a slider input
   sidebarLayout(
     sidebarPanel(
-      selectInput("city_id", "Select City:",
+      selectInput("city", "Select City:",
                   choices = unique(Lab5::getCityNames())
       ),
       actionButton("get_info_button", "Get Information")),
@@ -30,37 +36,38 @@ ui <- fluidPage(
 )
 
 server <- function(input, output) {
-  observeEvent(input$get_info_button, {
-    city_id <- input$city_id
-    city_info <- Lab5::getCityInfo(city_id)
+  results<-reactive({
+    city<-input$city
+    network_ids<-if(city=="malmobybike")"malmobybike"else "lundahoj"
+    bikeStationStatus(network_ids)
+  })
+  #create the table for the output
+  output$results_table<-renderTable({
+    data<-results()
 
-    if (!is.null(city_info)) {
-      results <- Lab5::find_busiest_and_least_busy_stations(city_info)
+  if(!is.null(results())){
+    # Extract information from the results and create a data frame
+    city_names <- sapply(data, function(city_info) city_info$network$location$city)
+    busiest_names <- sapply(data, function(city_info) city_info$busiest$name)
+    busiest_addresses <- sapply(data, function(city_info) city_info$busiest$extra$address)
+    least_busy_names <- sapply(data, function(city_info) city_info$least_busy$name)
+    least_busy_addresses <- sapply(data, function(city_info) city_info$least_busy$extra$address)
 
-      busiest_station <- results$busiest
-      least_busy_station <- results$least_busy
+    result_df <- data.frame(
+      City = city_names,
+      Busiest_Station_Name = busiest_names,
+      Busiest_Station_Address = busiest_addresses,
+      Least_Busy_Station_Name = least_busy_names,
+      Least_Busy_Station_Address = least_busy_addresses
+    )
 
-      busiest_text <- paste(
-        "Busiest Station Details:",
-        "Name:", busiest_station$name,
-        "Address:", busiest_station$extra$address,
-        "Empty Slots:", busiest_station$empty_slots
-      )
-
-      least_busy_text <- paste(
-        "Least Busy Station Details:",
-        "Name:", least_busy_station$name,
-        "Address:", least_busy_station$extra$address,
-        "Empty Slots:", least_busy_station$empty_slots
-      )
-
-      output$busiest_station_info <- renderText(busiest_text)
-      output$least_busy_station_info <- renderText(least_busy_text)
-    } else {
-      output$busiest_station_info <- renderText("No detailed information available for this city.")
-      output$least_busy_station_info <- renderText(NULL)
-    }
+    return(result_df)
+  } else {
+    return(NULL)
+  }
   })
 }
+
+
 # Run the application
 shinyApp(ui = ui, server = server)
