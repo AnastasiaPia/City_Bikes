@@ -9,65 +9,56 @@ library(jsonlite)
 
 
 
+
+source("Lab5.R")
+
+
 if(!("Lab5" %in% installed.packages()[,"Package"])){
   devtools::install_github("NAZLIBILGIC/Lab5")
   library(Lab5)
 }
 
-# Define UI for application
+
+# Define the UI for the Shiny app
 ui <- fluidPage(
-
-  # Application title
-  titlePanel("City Bike Station Status"),
-
-  # Sidebar with a slider input
+  titlePanel("City Bike Station Info"),
   sidebarLayout(
     sidebarPanel(
-      selectInput("city", "Select City:",
-                  choices = unique(Lab5::getCityNames())
-      ),
-      actionButton("get_info_button", "Get Information")),
-    # Show a plot of the generated distribution
+      # Input for selecting the city
+      selectInput("city", "Select a City:",
+                  choices = c("lundahoj", "malmobybike"),
+                  selected = "lundahoj"),
+
+      # Button to trigger data fetching
+      actionButton("fetchData", "Fetch Data")
+    ),
     mainPanel(
-      textOutput("busiest_station_info"),
-      textOutput("least_busy_station_info")
+      # Display the results
+      verbatimTextOutput("resultOutput")
     )
   )
 )
 
+# Define the server logic for the Shiny app
 server <- function(input, output) {
-  results<-reactive({
-    city<-input$city
-    network_ids<-if(city=="malmobybike")"malmobybike"else "lundahoj"
-    bikeStationStatus(network_ids)
+  cityData <- reactiveVal(NULL)
+
+  observeEvent(input$fetchData, {
+    selectedCity <- input$city
+
+    # Call the fetchCityBikeData function with the selected city URL
+    cityData(fetchCityBikeData(api_urls = paste0("http://api.citybik.es/v2/networks/", selectedCity)))
   })
-  #create the table for the output
-  output$results_table<-renderTable({
-    data<-results()
 
-  if(!is.null(results())){
-    # Extract information from the results and create a data frame
-    city_names <- sapply(data, function(city_info) city_info$network$location$city)
-    busiest_names <- sapply(data, function(city_info) city_info$busiest$name)
-    busiest_addresses <- sapply(data, function(city_info) city_info$busiest$extra$address)
-    least_busy_names <- sapply(data, function(city_info) city_info$least_busy$name)
-    least_busy_addresses <- sapply(data, function(city_info) city_info$least_busy$extra$address)
+  output$resultOutput <- renderPrint({
+    if (is.null(cityData())) {
+      return("Click 'Fetch Data' to get station information.")
+    }
 
-    result_df <- data.frame(
-      City = city_names,
-      Busiest_Station_Name = busiest_names,
-      Busiest_Station_Address = busiest_addresses,
-      Least_Busy_Station_Name = least_busy_names,
-      Least_Busy_Station_Address = least_busy_addresses
-    )
-
-    return(result_df)
-  } else {
-    return(NULL)
-  }
+    # Display the results for the selected city
+    cityData()[[input$city]]
   })
 }
 
-
-# Run the application
+# Run the Shiny app
 shinyApp(ui = ui, server = server)
